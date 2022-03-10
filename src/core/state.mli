@@ -1,5 +1,10 @@
 open Crypto
-type t [@@deriving yojson]
+type t = {
+  ledger : Ledger.t;
+  vm_state : Vm_state.t;
+}
+[@@deriving yojson]
+
 type receipt = Receipt_tezos_withdraw of Ledger.Withdrawal_handle.t
 [@@deriving yojson]
 val empty : t

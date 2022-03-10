@@ -113,8 +113,12 @@ let handle_ticket_balance =
       let state = Server.get_state () in
       let amount = Flows.request_ticket_balance state ~ticket ~address in
       Ok { amount })
-let node folder =
+let node folder state_machine_path =
   let node = Node_state.get_initial_state ~folder |> Lwt_main.run in
+  let named_pipe_path =  folder ^ "/state_transition" in
+  let _ = Named_pipe.make_pipe_pair named_pipe_path in
+  Core.Vm_state.start_state_transition_machine ~binary_path:state_machine_path
+    ~named_pipe_path;
   Tezos_interop.Consensus.listen_operations
     ~context:node.Node.State.interop_context ~on_operation:(fun operation ->
       Flows.received_tezos_operation (Server.get_state ()) update_state
@@ -146,6 +150,11 @@ let node =
     let doc = "Path to the folder containing the node configuration data." in
     let open Arg in
     required & pos 0 (some string) None & info [] ~doc ~docv in
+  let state_machine_path =
+    let docv = "state_machine_path" in
+    let doc = "Path to the custom state machine binary to be used by the node" in
+    let open Arg in
+    required & pos 1 (some string) None & info [] ~doc ~docv in
   let open Term in
-  const node $ folder_node
+  const node $ folder_node $ state_machine_path
 let () = Term.exit @@ Term.eval (node, Term.info "deku-node")

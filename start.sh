@@ -20,7 +20,7 @@ VALIDATORS=(0 1 2)
 SERVERS=()
 echo "Starting nodes."
 for i in ${VALIDATORS[@]}; do
-  deku_node "$data_directory/$i" &
+  deku_node "$data_directory/$i" ./state_transition/state_transition &
   SERVERS+=($!)
 done
 

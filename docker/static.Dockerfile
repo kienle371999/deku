@@ -1,9 +1,6 @@
-FROM alpine:latest as certs
-RUN apk --update add ca-certificates
-
 FROM esydev/esy:nightly-alpine-latest as builder
 
-RUN apk add libexecinfo-dev
+RUN apk add libexecinfo-dev go ca-certificates gmp-dev libev nodejs go
 
 WORKDIR /app
 
@@ -19,25 +16,12 @@ COPY . .
 # TODO: investigate why esy complains that it's not installed if we don't install again
 RUN esy install
 RUN esy build
-RUN esy build_static
+
+# Build the Go components
+RUN cd ./state_transition && go build
 
 # Copy the static binaries to a known location
-RUN esy cp "#{self.target_dir / 'default' / 'src' / 'bin' / 'deku_cli.exe'}" deku_cli.exe && \
-    esy cp "#{self.target_dir / 'default' / 'src' / 'bin' / 'deku_node.exe'}" deku_node.exe
-RUN strip ./deku_node.exe && strip ./deku_cli.exe
+RUN esy cp "#{self.target_dir / 'default' / 'src' / 'bin' / 'deku_cli.exe'}" deku-cli && \
+    esy cp "#{self.target_dir / 'default' / 'src' / 'bin' / 'deku_node.exe'}" deku-node
 
-FROM scratch as runtime
-
-# Setup OPENSSL so that it finds the certs
-ENV OPENSSL_STATIC=1
-ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-ENV SSL_CERT_DIR=/etc/ssl/certs
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
-
-WORKDIR /app
-
-COPY --from=builder /app/deku_node.exe deku_node.exe
-COPY --from=builder /app/deku_cli.exe deku_cli.exe
-
-ENTRYPOINT ["/app/deku_node.exe"]
-CMD ["/app/data"]
+CMD /app/deku-node /app/data /app/state_transition/state_transition

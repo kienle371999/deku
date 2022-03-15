@@ -6,6 +6,9 @@ data_directory="data"
 LD_LIBRARY_PATH=$(esy x sh -c 'echo $LD_LIBRARY_PATH')
 export LD_LIBRARY_PATH
 
+RPC_NODE="${RPC_NODE:-"http://localhost:20000"}"
+echo "Using $RPC_NODE as RPC Node"
+
 DEKU_CLI=$(esy x which deku-cli)
 deku_cli() {
   eval $DEKU_CLI '"$@"'
@@ -17,7 +20,7 @@ deku_node() {
 }
 
 tezos-client() {
-  docker exec -it deku_flextesa tezos-client "$@"
+  docker exec -t deku_flextesa tezos-client "$@"
 }
 
 ligo() {
@@ -178,8 +181,8 @@ start_tezos_node() {
   tezos-client --endpoint $RPC_NODE import secret key myWallet "unencrypted:$SECRET_KEY" --force
 }
 
+SERVERS=()
 start_deku_cluster() {
-  SERVERS=()
   echo "Starting nodes."
   for i in ${VALIDATORS[@]}; do
     deku_node "$data_directory/$i" &
@@ -198,6 +201,9 @@ start_deku_cluster() {
     deku_cli sign-block "$data_directory/$i" $HASH
   done
 
+}
+
+wait_for_servers() {
   for PID in ${SERVERS[@]}; do
     wait $PID
   done
@@ -232,6 +238,7 @@ setup)
   ;;
 start)
   start_deku_cluster
+  wait_for_servers
   ;;
 tear-down)
   tear-down

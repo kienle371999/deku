@@ -11,6 +11,7 @@ module Context : sig
 end
 module Consensus : sig
   val commit_state_hash :
+    data_folder:string ->
     context:Context.t ->
     block_height:int64 ->
     block_payload_hash:BLAKE2B.t ->
@@ -35,6 +36,7 @@ module Consensus : sig
   }
   val listen_operations :
     context:Context.t -> on_operation:(operation -> unit) -> unit
+  val initialize_taquito : data_folder:string -> unit
   val fetch_validators :
     context:Context.t -> (Key_hash.t list, string) result Lwt.t
 end

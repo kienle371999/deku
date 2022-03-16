@@ -11,6 +11,7 @@ module Context = struct
 end
 module Run_contract = struct
   type input = {
+    nonce : int;
     rpc_node : string;
     secret : string;
     confirmation : int;
@@ -19,43 +20,60 @@ module Run_contract = struct
     payload : Yojson.Safe.t;
   }
   [@@deriving to_yojson]
-  type output =
+  type output_data =
     | Applied     of { hash : string }
     | Failed      of { hash : string }
     | Skipped     of { hash : string }
     | Backtracked of { hash : string }
     | Unknown     of { hash : string }
     | Error       of string
+  type output = {
+    nonce : int;
+    data : output_data;
+  }
+  let nonce_level = ref (-1)
+  let bump_nonce_level () =
+    let nonce = !nonce_level in
+    let nonce =
+      if nonce = 999 then
+        0
+      else
+        !nonce_level + 1 in
+    nonce_level := nonce;
+    nonce
+  module IntMap = Map.Make (Int)
+  let nonce_resolutions = (ref IntMap.empty : output_data Lwt.u IntMap.t ref)
   let output_of_yojson json =
     let module T = struct
-      type t = { status : string } [@@deriving of_yojson { strict = false }]
-
+      type t = {
+        status : string;
+        nonce : int;
+      }
+      [@@deriving of_yojson { strict = false }]
       and finished = { hash : string }
-
       and error = { error : string }
     end in
     let finished make =
       let%ok { hash } = T.finished_of_yojson json in
       Ok (make hash) in
-    let%ok { status } = T.of_yojson json in
-    match status with
-    | "applied" -> finished (fun hash -> Applied { hash })
-    | "failed" -> finished (fun hash -> Failed { hash })
-    | "skipped" -> finished (fun hash -> Skipped { hash })
-    | "backtracked" -> finished (fun hash -> Backtracked { hash })
-    | "unknown" -> finished (fun hash -> Unknown { hash })
-    | "error" ->
-      let%ok { error } = T.error_of_yojson json in
-      Ok (Error error)
-    | _ -> Error "invalid status"
-  let file =
-    let%await file, oc = Lwt_io.open_temp_file ~suffix:".js" () in
-    let%await () = Lwt_io.write oc [%blob "run_entrypoint.bundle.js"] in
-    await file
-  let file = Lwt_main.run file
-  let run ~context ~destination ~entrypoint ~payload =
+    let%ok { status; nonce } = T.of_yojson json in
+    let%ok data =
+      match status with
+      | "applied" -> finished (fun hash -> Applied { hash })
+      | "failed" -> finished (fun hash -> Failed { hash })
+      | "skipped" -> finished (fun hash -> Skipped { hash })
+      | "backtracked" -> finished (fun hash -> Backtracked { hash })
+      | "unknown" -> finished (fun hash -> Unknown { hash })
+      | "error" ->
+        let%ok { error } = T.error_of_yojson json in
+        Ok (Error error)
+      | _ -> Error "invalid status" in
+    Ok { nonce; data }
+  let run ~data_folder ~context ~destination ~entrypoint ~payload =
+    let nonce = bump_nonce_level () in
     let input =
       {
+        nonce;
         rpc_node = context.Context.rpc_node |> Uri.to_string;
         secret = context.secret |> Secret.to_string;
         confirmation = context.required_confirmations;
@@ -63,16 +81,25 @@ module Run_contract = struct
         entrypoint;
         payload;
       } in
-    let command = "node" in
-    let%await output =
-      Lwt_process.pmap
-        (command, [|command; file|])
-        (Yojson.Safe.to_string (input_to_yojson input)) in
-    match Yojson.Safe.from_string output |> output_of_yojson with
-    | Ok data ->
-      Format.eprintf "Commit operation result: %s\n%!" output;
-      await data
-    | Error error -> await (Error error)
+    let read_channel, write_channel =
+      Named_pipe.get_pipe_pair_channels (data_folder ^ "/tezos_interop") in
+    let input_str = Yojson.Safe.to_string (input_to_yojson input) in
+    let%await () = Lwt_io.write write_channel input_str in
+    let promise, resolve = Lwt.wait () in
+    nonce_resolutions := IntMap.add nonce resolve !nonce_resolutions;
+    Lwt.async (fun () ->
+        let%await output = Lwt_io.read ~count:100 read_channel in
+        match Yojson.Safe.from_string output |> output_of_yojson with
+        | Ok { nonce; data } ->
+          Format.printf "Commit operation result: %s\n%!" output;
+          let resolve = IntMap.find nonce !nonce_resolutions in
+          Lwt.wakeup resolve data;
+          nonce_resolutions := IntMap.remove nonce !nonce_resolutions;
+          Lwt.return_unit
+        | Error error ->
+          Format.eprintf "Error while parsing Taquito output: %s" error;
+          Lwt.return_unit);
+    promise
 end
 let michelson_of_yojson json =
   let%ok json = Yojson.Safe.to_string json |> Data_encoding.Json.from_string in
@@ -201,9 +228,22 @@ module Listen_transactions = struct
 end
 module Consensus = struct
   open Michelson.Michelson_v1_primitives
+  let initialize_taquito ~data_folder =
+    let pipe_path = data_folder ^ "/tezos_interop" in
+    Named_pipe.make_pipe_pair pipe_path;
+    let js_file =
+      let%await file, oc = Lwt_io.open_temp_file ~suffix:".js" () in
+      let%await () = Lwt_io.write oc [%blob "run_entrypoint.bundle.js"] in
+      await file in
+    let js_file = Lwt_main.run js_file in
+    let _pid =
+      Unix.create_process "node"
+        [|"node"; js_file; pipe_path|]
+        Unix.stdin Unix.stdout Unix.stderr in
+    ()
   open Tezos_micheline
-  let commit_state_hash ~context ~block_height ~block_payload_hash ~state_hash
-      ~withdrawal_handles_hash ~validators ~signatures =
+  let commit_state_hash ~data_folder ~context ~block_height ~block_payload_hash
+      ~state_hash ~withdrawal_handles_hash ~validators ~signatures =
     let module Payload = struct
       type t = {
         block_height : int64;
@@ -240,7 +280,8 @@ module Consensus = struct
         current_validator_keys;
       } in
     let%await _ =
-      Run_contract.run ~context ~destination:context.Context.consensus_contract
+      Run_contract.run ~data_folder ~context
+        ~destination:context.Context.consensus_contract
         ~entrypoint:"update_root_hash"
         ~payload:(Payload.to_yojson payload) in
     await ()

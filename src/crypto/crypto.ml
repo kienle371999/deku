@@ -11,3 +11,4 @@ module Secret = Secret
 module Key = Key
 module Key_hash = Key_hash
 module Signature = Signature
+module Vrf = Vrf

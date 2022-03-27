@@ -6,6 +6,8 @@ open Protocol
 open Cmdliner
 open Core
 open Bin_common
+open Calculation
+open Option
 
 let () = Printexc.record_backtrace true
 let read_validators ~node_folder =
@@ -18,6 +20,11 @@ let write_interop_context ~node_folder =
   Files.Interop_context.write ~file:(node_folder ^ "/tezos.json")
 let man = [`S Manpage.s_bugs; `P "Email bug reports to <contact@marigold.dev>."]
 let validators_uris node_folder =
+  (* let test_validators = 
+    Lwt.bind 
+    (read_validators ~node_folder)
+    (fun res -> await (res)) in
+    test_validators *)
   let%await validators = read_validators ~node_folder in
   validators |> List.map snd |> await
 let make_filename_from_address wallet_addr_str =
@@ -354,6 +361,7 @@ let info_produce_block =
      when the chain is stale." in
   Term.info "produce-block" ~version:"%\226\128\140%VERSION%%" ~doc ~exits ~man
 let produce_block node_folder =
+  let () = Format.eprintf "Producing blocks" in
   let%await identity = read_identity ~node_folder in
   let%await state = Node_state.get_initial_state ~folder:node_folder in
   let address = identity.t in
@@ -480,6 +488,7 @@ let info_self =
   Term.info "self" ~version:"%\226\128\140%VERSION%%" ~doc ~exits ~man
 let self node_folder =
   let%await identity = read_identity ~node_folder in
+  Format.printf "secret: %s\n" (Secret.to_string identity.secret);
   Format.printf "key: %s\n" (Wallet.to_string identity.key);
   Format.printf "address: %s\n" (Key_hash.to_string identity.t);
   Format.printf "uri: %s\n" (Uri.to_string identity.uri);
@@ -551,6 +560,66 @@ let remove_trusted_validator =
   let open Term in
   lwt_ret (const remove_trusted_validator $ folder_node $ validator_address)
 
+
+let info_select_validators =
+  let doc =
+    "Select the appropriate validators for each round" in
+  Term.info "select-validator" ~version:"%\226\128\140%VERSION%%" ~doc ~exits ~man
+
+let secret_key =
+  let parser string =
+    string
+    |> Secret.of_string
+    |> Option.to_result ~none:(`Msg "Expected a secret key.") in
+  let printer fmt secret_key =
+    Format.fprintf fmt "%s" (Secret.to_string secret_key) in
+  let open Arg in
+  conv (parser, printer)
+
+let seed =
+  let parser string =
+    string
+    |> BLAKE2B.of_string
+    |> Option.to_result ~none:(`Msg "Expected a seed.") in
+  let printer fmt secret_key =
+    Format.fprintf fmt "%s" (BLAKE2B.to_string secret_key) in
+  let open Arg in
+  conv (parser, printer)
+
+
+let select_validator secret_key seed seats total_nodes = 
+  let (chosen_validator, signed_message, proof) = 
+    Roll_selection.select_validators secret_key seed seats total_nodes 
+  in
+  Format.printf "state: %b\n" chosen_validator;
+  Format.printf "signature: %s\n" (Crypto.Signature.to_string signed_message);
+  Format.printf "proof: %s\n" proof;
+  Lwt.return (`Ok ())
+let select_validator =
+  let secret_key = 
+    let doc = "The secret key in this node." in 
+    let open Arg in
+      required & opt (some secret_key) None & info ["secret_key"] ~doc ~docv:"secret_key" in
+  let seed = 
+    let doc = "The random seed as input of the validators-selecting procedure." in 
+    let open Arg in
+      required & opt (some seed) None & info ["seed"] ~doc ~docv:"seed" in
+  let seats = 
+    let doc = "The number of seats in the later validation committee" in 
+    let open Arg in
+      required & opt (some int) None & info ["seats"] ~doc ~docv:"seats" in
+  let total_nodes = 
+    let doc = "The number of active nodes in the network." in 
+    let open Arg in
+      required & opt (some int) None & info ["total_nodes"] ~doc ~docv:"total_nodes" in
+  let open Term in
+      lwt_ret (const select_validator 
+      $ secret_key
+      $ seed
+      $ seats
+      $ total_nodes)
+
+
 (* TODO: https://github.com/ocaml/ocaml/issues/11090 *)
 let () = Domain.set_name "deku-cli"
 
@@ -568,5 +637,6 @@ let () =
          (setup_tezos, info_setup_tezos);
          (add_trusted_validator, info_add_trusted_validator);
          (remove_trusted_validator, info_remove_trusted_validator);
+         (select_validator, info_select_validators);
          (self, info_self);
        ]

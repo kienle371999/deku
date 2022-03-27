@@ -23,9 +23,19 @@ RPC_NODE=http://localhost:20000
 # This secret key never changes.
 SECRET_KEY="edsk3QoqBuvdamxouPhin7swCvkQNgq4jP5KZPbwWNnwdZpSpJiEbq"
 
+# This seed never changes.
+SEED="b17a829542acbb7a23d6fe03aedb404c6b9334fc7f6077d119b27ea6870d5d86"
+
 DATA_DIRECTORY="data"
 
-VALIDATORS=(0 1 2)
+VALIDATORS=(0 1 2 3 4 5) 
+
+# This validators are selected by VRF
+CHOSEN_VALIDATORS=()
+
+VALIDATOR_MEMBER=3
+
+CHOSEN_VALIDATOR_INDEX=0
 
 message() {
   echo "=========== $@ ==========="
@@ -34,9 +44,11 @@ message() {
 validators_json() {
   ## most of the noise in this function is because of indentation
   echo "["
-  for VALIDATOR in "${VALIDATORS[@]}"; do
+  for VALIDATOR in "${CHOSEN_VALIDATORS[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
+    SIGNATURE=$(echo $VALIDATOR | awk -F';' '{ print $5 }')
+    PROOF=$(echo $VALIDATOR | awk -F';' '{ print $6 }')
     URI=$(echo $VALIDATOR | awk -F';' '{ print $3 }')
     if [ $i != 0 ]; then
       printf ",
@@ -45,6 +57,8 @@ validators_json() {
     cat <<EOF
   {
     "address": "$ADDRESS",
+    "signature": "$SIGNATURE",
+    "proof": "$PROOF",
     "uri": "$URI"
 EOF
     printf "  }"
@@ -53,9 +67,16 @@ EOF
   echo "]"
 }
 
+select_validators() {
+  deku-cli select-validator --secret_key $1 \
+      --seed $SEED \
+      --seats $VALIDATOR_MEMBER \
+      --total_nodes 12
+}
+
 trusted_validator_membership_change_json() {
   echo "["
-  for VALIDATOR in "${VALIDATORS[@]}"; do
+  for VALIDATOR in "${CHOSEN_VALIDATORS[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
     if [ $i != 0 ]; then
@@ -80,9 +101,24 @@ create_new_deku_environment() {
     mkdir -p $FOLDER
 
     deku-cli setup-identity $FOLDER --uri "http://localhost:444$i"
+    SECRET=$(deku-cli self $FOLDER | grep "secret:" | awk '{ print $2 }')
     KEY=$(deku-cli self $FOLDER | grep "key:" | awk '{ print $2 }')
     ADDRESS=$(deku-cli self $FOLDER | grep "address:" | awk '{ print $2 }')
     URI=$(deku-cli self $FOLDER | grep "uri:" | awk '{ print $2 }')
+
+    echo $CURRENT_VALIDATOR
+
+    STATE=$(select_validators $SECRET | grep "state:" | awk '{ print $2 }')
+
+    echo "77> $STATE"
+
+    if [ $STATE == true ] ; then
+      SIGNATURE=$(select_validators $SECRET | grep "signature:" | awk '{ print $2 }')
+      PROOF=$(select_validators $SECRET | grep "proof:" | awk '{ print $2 }')
+      CHOSEN_VALIDATORS+=("$CHOSEN_VALIDATOR_INDEX;$KEY;$URI;$ADDRESS;$SIGNATURE;$PROOF")
+      ((CHOSEN_VALIDATOR_INDEX=CHOSEN_VALIDATOR_INDEX+1))
+    fi
+
     VALIDATORS[$i]="$i;$KEY;$URI;$ADDRESS"
   done
 

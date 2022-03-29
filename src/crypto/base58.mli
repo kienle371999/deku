@@ -75,3 +75,5 @@ val simple_decode :
   'a option
 (** Decoder for a given kind of data. It returns [None] when
   the decoded data does not start with the expected prefix. *)
+
+val decode_to_decimal : string -> int

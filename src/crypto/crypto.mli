@@ -12,3 +12,4 @@ module Key : module type of Key
 module Key_hash : module type of Key_hash
 module Signature : module type of Signature
 module Vrf : module type of Vrf
+module Utils : module type of Utils

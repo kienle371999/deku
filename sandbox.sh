@@ -33,7 +33,8 @@ VALIDATORS=(0 1 2 3 4 5)
 # This validators are selected by VRF
 CHOSEN_VALIDATORS=()
 
-VALIDATOR_MEMBER=3
+# This maximum validators
+VALIDATOR_MEMBER=5
 
 CHOSEN_VALIDATOR_INDEX=0
 
@@ -68,9 +69,9 @@ EOF
 }
 
 select_validators() {
-  deku-cli select-validator --secret_key $1 \
-      --seed $SEED \
-      --seats $VALIDATOR_MEMBER \
+  deku-cli select-validator --secret_key="$1" \
+      --seed="$SEED" \
+      --seats="$VALIDATOR_MEMBER" \
       --total_nodes 12
 }
 
@@ -106,7 +107,9 @@ create_new_deku_environment() {
     ADDRESS=$(deku-cli self $FOLDER | grep "address:" | awk '{ print $2 }')
     URI=$(deku-cli self $FOLDER | grep "uri:" | awk '{ print $2 }')
 
-    echo $CURRENT_VALIDATOR
+    x=$(deku-cli select-validator --secret_key="$SECRET" --seed="$SEED" --seats="$VALIDATOR_MEMBER" --total_nodes 12)
+
+    echo $x
 
     STATE=$(select_validators $SECRET | grep "state:" | awk '{ print $2 }')
 

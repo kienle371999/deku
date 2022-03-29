@@ -14,8 +14,8 @@ let select_validators secret_key seed seats total_nodes =
   (* Probability of one node chosen in this validation committee *)
   let p = Int.to_float seats /. Int.to_float total_nodes in
   let signed_message, proof = Vrf.generate secret_key seed in
-  (* let () = Printf.printf "length byte %i" (Cstruct.to_bytes (Random.generate 30)) in *)
-  let integer_of_signed_message = Bytes.get_uint16_le (Cstruct.to_bytes (Random.generate 30)) 0 in
+  let string_signed_message = Signature.to_string signed_message in
+  let integer_of_signed_message = Base58.decode_to_decimal (String.sub string_signed_message 20 4) in
   let chosen_validator = 
     determine_valid_validator integer_of_signed_message (Utils.calculate_bit_length integer_of_signed_message) p
   in 
@@ -31,7 +31,6 @@ let verify_selection_of_validators public_key signed_message proof seats seed to
     determine_valid_validator integer_of_signed_message (Utils.calculate_bit_length integer_of_signed_message) p
   else false
     
-
 
 
 

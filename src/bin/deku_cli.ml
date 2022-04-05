@@ -20,11 +20,6 @@ let write_interop_context ~node_folder =
   Files.Interop_context.write ~file:(node_folder ^ "/tezos.json")
 let man = [`S Manpage.s_bugs; `P "Email bug reports to <contact@marigold.dev>."]
 let validators_uris node_folder =
-  (* let test_validators = 
-    Lwt.bind 
-    (read_validators ~node_folder)
-    (fun res -> await (res)) in
-    test_validators *)
   let%await validators = read_validators ~node_folder in
   validators |> List.map snd |> await
 let make_filename_from_address wallet_addr_str =
@@ -361,7 +356,6 @@ let info_produce_block =
      when the chain is stale." in
   Term.info "produce-block" ~version:"%\226\128\140%VERSION%%" ~doc ~exits ~man
 let produce_block node_folder =
-  let () = Format.eprintf "Producing blocks" in
   let%await identity = read_identity ~node_folder in
   let%await state = Node_state.get_initial_state ~folder:node_folder in
   let address = identity.t in

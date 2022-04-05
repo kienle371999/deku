@@ -28,15 +28,15 @@ SEED="b17a829542acbb7a23d6fe03aedb404c6b9334fc7f6077d119b27ea6870d5d86"
 
 DATA_DIRECTORY="data"
 
-VALIDATORS=(0 1 2 3 4 5) 
+NODES=(0 1 2 3 4 5) 
 
 # This validators are selected by VRF
-CHOSEN_VALIDATORS=()
+VALIDATORS=()
 
 # This maximum validators
 VALIDATOR_MEMBER=5
 
-CHOSEN_VALIDATOR_INDEX=0
+VALIDATOR_INDEX=0
 
 message() {
   echo "=========== $@ ==========="
@@ -45,7 +45,7 @@ message() {
 validators_json() {
   ## most of the noise in this function is because of indentation
   echo "["
-  for VALIDATOR in "${CHOSEN_VALIDATORS[@]}"; do
+  for VALIDATOR in "${NODES[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
     SIGNATURE=$(echo $VALIDATOR | awk -F';' '{ print $5 }')
@@ -58,8 +58,6 @@ validators_json() {
     cat <<EOF
   {
     "address": "$ADDRESS",
-    "signature": "$SIGNATURE",
-    "proof": "$PROOF",
     "uri": "$URI"
 EOF
     printf "  }"
@@ -77,7 +75,7 @@ select_validators() {
 
 trusted_validator_membership_change_json() {
   echo "["
-  for VALIDATOR in "${CHOSEN_VALIDATORS[@]}"; do
+  for VALIDATOR in "${NODES[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
     if [ $i != 0 ]; then
@@ -97,7 +95,7 @@ EOF
 
 create_new_deku_environment() {
   message "Creating validator identities"
-  for i in ${VALIDATORS[@]}; do
+  for i in ${NODES[@]}; do
     FOLDER="$DATA_DIRECTORY/$i"
     mkdir -p $FOLDER
 
@@ -118,11 +116,11 @@ create_new_deku_environment() {
     if [ $STATE == true ] ; then
       SIGNATURE=$(select_validators $SECRET | grep "signature:" | awk '{ print $2 }')
       PROOF=$(select_validators $SECRET | grep "proof:" | awk '{ print $2 }')
-      CHOSEN_VALIDATORS+=("$CHOSEN_VALIDATOR_INDEX;$KEY;$URI;$ADDRESS;$SIGNATURE;$PROOF")
-      ((CHOSEN_VALIDATOR_INDEX=CHOSEN_VALIDATOR_INDEX+1))
+      VALIDATORS+=("$VALIDATOR_INDEX;$KEY;$URI;$ADDRESS;$SIGNATURE;$PROOF")
+      ((VALIDATOR_INDEX=VALIDATOR_INDEX+1))
     fi
 
-    VALIDATORS[$i]="$i;$KEY;$URI;$ADDRESS"
+    NODES[$i]="$i;$KEY;$URI;$ADDRESS"
   done
 
   message "Deploying new consensus contract"
@@ -141,8 +139,8 @@ create_new_deku_environment() {
     current_validators = [
 EOF
     ## this iteration is done here just to ensure the indentation
-    for VALIDATOR in ${VALIDATORS[@]}; do
-      ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
+    for NODE in ${NODES[@]}; do
+      ADDRESS=$(echo $NODE | awk -F';' '{ print $4 }')
       echo "      (\"$ADDRESS\": key_hash);"
     done
     cat <<EOF
@@ -170,8 +168,8 @@ EOF
     --burn-cap 2 \
     --force
 
-  for VALIDATOR in ${VALIDATORS[@]}; do
-    i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
+  for NODE in ${NODES[@]}; do
+    i=$(echo $NODE | awk -F';' '{ print $1 }')
     FOLDER="$DATA_DIRECTORY/$i"
     validators_json >"$FOLDER/validators.json"
     trusted_validator_membership_change_json >"$FOLDER/trusted-validator-membership-change.json"
@@ -181,8 +179,8 @@ EOF
   TEZOS_CONSENSUS_ADDRESS="$(tezos-client --endpoint $RPC_NODE show known contract consensus | grep KT1 | tr -d '\r')"
 
   message "Configuring Deku nodes"
-  for VALIDATOR in ${VALIDATORS[@]}; do
-    i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
+  for NODE in ${NODES[@]}; do
+    i=$(echo $NODE | awk -F';' '{ print $1 }')
     FOLDER="$DATA_DIRECTORY/$i"
 
     deku-cli setup-tezos "$FOLDER" \
@@ -195,7 +193,7 @@ EOF
 }
 
 tear-down() {
-  for i in ${VALIDATORS[@]}; do
+  for i in ${NODES[@]}; do
     FOLDER="$DATA_DIRECTORY/$i"
     if [ -d $FOLDER ]; then
       rm -r $FOLDER
@@ -214,7 +212,7 @@ start_tezos_node() {
 start_deku_cluster() {
   SERVERS=()
   echo "Starting nodes."
-  for i in ${VALIDATORS[@]}; do
+  for i in ${NODES[@]}; do
     deku-node "$data_directory/$i" &
     SERVERS+=($!)
   done
@@ -224,12 +222,16 @@ start_deku_cluster() {
   echo "Producing a block"
   HASH=$(deku-cli produce-block "$data_directory/0" | awk '{ print $2 }')
 
+  echo "-------0000 $HASH"
+
   sleep 0.1
 
   echo "Signing"
-  for i in ${VALIDATORS[@]}; do
-    deku-cli sign-block "$data_directory/$i" $HASH
-  done
+  deku-cli sign-block "$data_directory/5" $HASH
+
+  # for i in ${VALIDATORS[@]}; do
+  #   deku-cli sign-block "$data_directory/$i" $HASH
+  # done
 
   for PID in ${SERVERS[@]}; do
     wait $PID

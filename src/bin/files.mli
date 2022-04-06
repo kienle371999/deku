@@ -14,8 +14,8 @@ module Wallet : sig
   val write : t -> file:string -> unit Lwt.t
 end
 module Validators : sig
-  val read : file:string -> (Crypto.Key_hash.t * Uri.t) list Lwt.t
-  val write : (Crypto.Key_hash.t * Uri.t) list -> file:string -> unit Lwt.t
+  val read : file:string -> validator list Lwt.t
+  val write : validator list -> file:string -> unit Lwt.t
 end
 module Interop_context : sig
   val read : file:string -> Tezos_interop.Context.t Lwt.t

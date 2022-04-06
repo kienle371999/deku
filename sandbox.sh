@@ -58,6 +58,8 @@ validators_json() {
     cat <<EOF
   {
     "address": "$ADDRESS",
+    "signature": "$SIGNATURE",
+    "proof": "$PROOF",
     "uri": "$URI"
 EOF
     printf "  }"

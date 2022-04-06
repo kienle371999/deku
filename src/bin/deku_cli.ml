@@ -21,7 +21,7 @@ let write_interop_context ~node_folder =
 let man = [`S Manpage.s_bugs; `P "Email bug reports to <contact@marigold.dev>."]
 let validators_uris node_folder =
   let%await validators = read_validators ~node_folder in
-  validators |> List.map snd |> await
+  validators |> List.map (fun validator -> validator.uri) |> await
 let make_filename_from_address wallet_addr_str =
   Printf.sprintf "%s.tzsidewallet" wallet_addr_str
 let exits =

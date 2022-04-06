@@ -8,6 +8,14 @@ type identity = {
   uri : Uri.t;
 }
 [@@deriving yojson]
+type validator = {
+    address : Crypto.Key_hash.t;
+    signature: Crypto.Signature.t;
+    proof: string;
+    uri : Uri.t;
+  }
+
+[@@deriving yojson]
 module Address_map = Map.Make (Key_hash)
 module Uri_map = Map.Make (Uri)
 type t = {

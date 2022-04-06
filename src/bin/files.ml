@@ -25,20 +25,12 @@ module Wallet = struct
   let write = write_json to_yojson
 end
 module Validators = struct
-  type t = {
-    address : Crypto.Key_hash.t;
-    uri : Uri.t;
-  }
-  [@@deriving yojson]
   let read =
     read_json (fun json ->
-        let%ok validators = [%of_yojson: t list] json in
-        Ok (List.map (fun { address; uri } -> (address, uri)) validators))
+        let%ok validators = [%of_yojson: validator list] json in
+        Ok (validators))
   let write =
-    write_json (fun validators ->
-        validators
-        |> List.map (fun (address, uri) -> { address; uri })
-        |> [%to_yojson: t list])
+    write_json (fun validators -> validators |> [%to_yojson: validator list])
 end
 module Interop_context = struct
   module Secret = struct

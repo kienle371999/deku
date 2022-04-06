@@ -45,7 +45,7 @@ message() {
 validators_json() {
   ## most of the noise in this function is because of indentation
   echo "["
-  for VALIDATOR in "${NODES[@]}"; do
+  for VALIDATOR in "${VALIDATORS[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
     SIGNATURE=$(echo $VALIDATOR | awk -F';' '{ print $5 }')
@@ -75,7 +75,7 @@ select_validators() {
 
 trusted_validator_membership_change_json() {
   echo "["
-  for VALIDATOR in "${NODES[@]}"; do
+  for VALIDATOR in "${VALIDATORS[@]}"; do
     i=$(echo $VALIDATOR | awk -F';' '{ print $1 }')
     ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
     if [ $i != 0 ]; then
@@ -107,11 +107,7 @@ create_new_deku_environment() {
 
     x=$(deku-cli select-validator --secret_key="$SECRET" --seed="$SEED" --seats="$VALIDATOR_MEMBER" --total_nodes 12)
 
-    echo $x
-
     STATE=$(select_validators $SECRET | grep "state:" | awk '{ print $2 }')
-
-    echo "77> $STATE"
 
     if [ $STATE == true ] ; then
       SIGNATURE=$(select_validators $SECRET | grep "signature:" | awk '{ print $2 }')
@@ -139,8 +135,8 @@ create_new_deku_environment() {
     current_validators = [
 EOF
     ## this iteration is done here just to ensure the indentation
-    for NODE in ${NODES[@]}; do
-      ADDRESS=$(echo $NODE | awk -F';' '{ print $4 }')
+    for VALIDATOR in ${VALIDATORS[@]}; do
+      ADDRESS=$(echo $VALIDATOR | awk -F';' '{ print $4 }')
       echo "      (\"$ADDRESS\": key_hash);"
     done
     cat <<EOF
@@ -222,16 +218,21 @@ start_deku_cluster() {
   echo "Producing a block"
   HASH=$(deku-cli produce-block "$data_directory/0" | awk '{ print $2 }')
 
-  echo "-------0000 $HASH"
-
   sleep 0.1
 
   echo "Signing"
-  deku-cli sign-block "$data_directory/5" $HASH
+  for i in ${NODES[@]}; do
+    IDENTITY_URI=$(jq '.uri' $data_directory/$i/identity.json)
+    VALIDATOR_URIS=$(jq '.[].uri' $data_directory/$i/validators.json)
 
-  # for i in ${VALIDATORS[@]}; do
-  #   deku-cli sign-block "$data_directory/$i" $HASH
-  # done
+    for URI in ${VALIDATOR_URIS[@]}; do
+      if [ $URI == $IDENTITY_URI ] ; then
+        deku-cli sign-block "$data_directory/$i" $HASH
+        break
+    fi 
+    done
+  
+  done
 
   for PID in ${SERVERS[@]}; do
     wait $PID

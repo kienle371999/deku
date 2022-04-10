@@ -75,7 +75,7 @@ Simply run:
 ./sandbox.sh start
 ```
 
-This starts 3 nodes as background processes.
+This starts 5 nodes as background processes.
 
 You may have to stop the session with `killall deku-node` to fully shutdown the cluster.
 
@@ -83,4 +83,8 @@ In either case, if all goes well, you should see the block height displayed in t
 
 ## Contributing
 
-Please refer the developer wiki [here](https://github.com/marigold-dev/sidechain/wiki)
+Please come to the [README][vrf-readme] to see my contributions.
+
+
+
+[vrf-readme]: ./src/calculation/README.md

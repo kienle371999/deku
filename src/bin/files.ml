@@ -30,7 +30,7 @@ module Validators = struct
         let%ok validators = [%of_yojson: validator list] json in
         Ok (validators))
   let write =
-    write_json (fun validators -> validators |> [%to_yojson: validator list])
+    write_json (fun validators -> [%to_yojson: validator list] validators)
 end
 module Interop_context = struct
   module Secret = struct

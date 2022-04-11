@@ -28,7 +28,7 @@ module Validators = struct
   let read =
     read_json (fun json ->
         let%ok validators = [%of_yojson: validator list] json in
-        Ok (validators))
+        Ok validators)
   let write =
     write_json (fun validators -> [%to_yojson: validator list] validators)
 end

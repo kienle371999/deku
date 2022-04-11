@@ -195,25 +195,81 @@ let simple_decode ?alphabet ~prefix ~of_raw s =
   safe_decode ?alphabet s >?? TzString.remove_prefix ~prefix >?? of_raw
 
 let base58_loop =
-  let size = 58 in 
-  let characters = [|
-    '1';'2';'3';'4';'5';'6';'7';'8';'9';
-    'A';'B';'C';'D';'E';'F';'G';'H';'J';'K';'L';'M';'N';'P';'Q';'R';'S';'T';'U';'V';'W';'X';'Y';'Z';
-    'a';'b';'c';'d';'e';'f';'g';'h';'i';'j';'k';'m';'n';'o';'p';'q';'r';'s';'t';'u';'v';'w';'x';'y';'z'
-  |] in
+  let size = 58 in
+  let characters =
+    [|
+      '1';
+      '2';
+      '3';
+      '4';
+      '5';
+      '6';
+      '7';
+      '8';
+      '9';
+      'A';
+      'B';
+      'C';
+      'D';
+      'E';
+      'F';
+      'G';
+      'H';
+      'J';
+      'K';
+      'L';
+      'M';
+      'N';
+      'P';
+      'Q';
+      'R';
+      'S';
+      'T';
+      'U';
+      'V';
+      'W';
+      'X';
+      'Y';
+      'Z';
+      'a';
+      'b';
+      'c';
+      'd';
+      'e';
+      'f';
+      'g';
+      'h';
+      'i';
+      'j';
+      'k';
+      'm';
+      'n';
+      'o';
+      'p';
+      'q';
+      'r';
+      's';
+      't';
+      'u';
+      'v';
+      'w';
+      'x';
+      'y';
+      'z';
+    |] in
   let base58_characters = Hashtbl.create size in
   for i = 0 to size - 1 do
     Hashtbl.add base58_characters characters.(i) i
   done;
   base58_characters
 
-let decode_to_decimal s = 
+let decode_to_decimal s =
   let value = ref 0 in
   let base58_list = base58_loop in
-  for i = 0 to ((String.length s) - 1) do
-    let index = Hashtbl.find base58_list (String.get s ((String.length s) - i - 1)) in
-    let current_value = index * (Float.to_int (Utils.pow 58. i)) in
+  for i = 0 to String.length s - 1 do
+    let index =
+      Hashtbl.find base58_list (String.get s (String.length s - i - 1)) in
+    let current_value = index * Float.to_int (Utils.pow 58. i) in
     value := !value + current_value
   done;
   !value
-

@@ -554,11 +554,10 @@ let remove_trusted_validator =
   let open Term in
   lwt_ret (const remove_trusted_validator $ folder_node $ validator_address)
 
-
 let info_select_validators =
-  let doc =
-    "Select the appropriate validators for each round" in
-  Term.info "select-validator" ~version:"%\226\128\140%VERSION%%" ~doc ~exits ~man
+  let doc = "Select the appropriate validators for each round" in
+  Term.info "select-validator" ~version:"%\226\128\140%VERSION%%" ~doc ~exits
+    ~man
 
 let secret_key =
   let parser string =
@@ -580,39 +579,37 @@ let seed =
   let open Arg in
   conv (parser, printer)
 
-
-let select_validator secret_key seed seats total_nodes = 
-  let (chosen_validator, signed_message, proof) = 
-    Roll_selection.select_validators secret_key seed seats total_nodes 
-  in
+let select_validator secret_key seed seats total_nodes =
+  let chosen_validator, signed_message, proof =
+    Roll_selection.select_validators secret_key seed seats total_nodes in
   Format.printf "state: %b\n" chosen_validator;
   Format.printf "signature: %s\n" (Crypto.Signature.to_string signed_message);
   Format.printf "proof: %s\n" proof;
   Lwt.return (`Ok ())
 let select_validator =
-  let secret_key = 
-    let doc = "The secret key in this node." in 
+  let secret_key =
+    let doc = "The secret key in this node." in
     let open Arg in
-      required & opt (some secret_key) None & info ["secret_key"] ~doc ~docv:"secret_key" in
-  let seed = 
-    let doc = "The random seed as input of the validators-selecting procedure." in 
+    required
+    & opt (some secret_key) None
+    & info ["secret_key"] ~doc ~docv:"secret_key" in
+  let seed =
+    let doc =
+      "The random seed as input of the validators-selecting procedure." in
     let open Arg in
-      required & opt (some seed) None & info ["seed"] ~doc ~docv:"seed" in
-  let seats = 
-    let doc = "The number of seats in the later validation committee" in 
+    required & opt (some seed) None & info ["seed"] ~doc ~docv:"seed" in
+  let seats =
+    let doc = "The number of seats in the later validation committee" in
     let open Arg in
-      required & opt (some int) None & info ["seats"] ~doc ~docv:"seats" in
-  let total_nodes = 
-    let doc = "The number of active nodes in the network." in 
+    required & opt (some int) None & info ["seats"] ~doc ~docv:"seats" in
+  let total_nodes =
+    let doc = "The number of active nodes in the network." in
     let open Arg in
-      required & opt (some int) None & info ["total_nodes"] ~doc ~docv:"total_nodes" in
+    required
+    & opt (some int) None
+    & info ["total_nodes"] ~doc ~docv:"total_nodes" in
   let open Term in
-      lwt_ret (const select_validator 
-      $ secret_key
-      $ seed
-      $ seats
-      $ total_nodes)
-
+  lwt_ret (const select_validator $ secret_key $ seed $ seats $ total_nodes)
 
 (* TODO: https://github.com/ocaml/ocaml/issues/11090 *)
 let () = Domain.set_name "deku-cli"

@@ -3,7 +3,6 @@ open Crypto
 (** Return [true] or [false] to determine that whether
     this node is a validator or not *)
 let determine_valid_validator integer_message bit_length p =
-  (* let () = Printf.printf "------- interger: %i, bit_length %i, binomial %f" integer_message bit_length p in  *)
   let input_number = Int.to_float integer_message /. Utils.pow 2. bit_length in
   input_number >= Utils.calculate_binomial_distribution 1 2 p
   && input_number < 1.
